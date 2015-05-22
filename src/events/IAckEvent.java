@@ -5,16 +5,10 @@
 	Projet :          Laboratoire #2
 	Date cr�ation :   2010-05-21
 ******************************************************
-�v�nement lanc� par les boutons "Envoyer � App Trois"
-des Applications.
+Interface pour la classe EventForPartOne.
 ******************************************************/ 
 package events;
 
-public class EventForPartThree extends EventBase implements IPartThreeEvent {
+public interface IAckEvent extends IEvent {
 
-	private static final long serialVersionUID = -854026869036649703L;
-
-	public EventForPartThree(String m){
-		super(m);
-	}
 }

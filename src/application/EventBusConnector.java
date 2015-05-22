@@ -1,17 +1,17 @@
 /******************************************************
 	Cours :           LOG730
-	Session :         Été 2010
+	Session :         ï¿½tï¿½ 2010
 	Groupe :          01
 	Projet :          Laboratoire #2
-	Date création :   2010-05-21
+	Date crï¿½ation :   2010-05-21
 ******************************************************
-Classe qui gère la transmission et la réception
-d'événements du côté d'une instance d'Application.
+Classe qui gï¿½re la transmission et la rï¿½ception
+d'ï¿½vï¿½nements du cï¿½tï¿½ d'une instance d'Application.
 
-La classe est en constante attente de nouveaux événements
-à l'aide d'un Thread. Lorsque l'Application associée
-au Connector lui envoie un événement, le Connector
-envoie l'événement au bus à l'aide d'un second Thread.
+La classe est en constante attente de nouveaux ï¿½vï¿½nements
+ï¿½ l'aide d'un Thread. Lorsque l'Application associï¿½e
+au Connector lui envoie un ï¿½vï¿½nement, le Connector
+envoie l'ï¿½vï¿½nement au bus ï¿½ l'aide d'un second Thread.
 ******************************************************/ 
 package application;
 
@@ -21,12 +21,15 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Stack;
 
+import events.EventThatShouldBeSynchronized;
 import events.IEvent;
+import events.IPartOneEvent;
 
 
 public class EventBusConnector extends Thread implements IEventBusConnector {
-	// Liste des événements à écouter.
+	// Liste des ï¿½vï¿½nements ï¿½ ï¿½couter.
 	@SuppressWarnings("unchecked")
 	private List<Class> listenedEvents;
 	
@@ -38,6 +41,25 @@ public class EventBusConnector extends Thread implements IEventBusConnector {
 	private ReadEventFromStream readStream;
 	
 	@SuppressWarnings("unchecked")
+
+
+
+	public EventBusConnector(List<Class> listenedEvents, String ip, int port,Class triggerClass) {
+		this.listenedEvents = listenedEvents;
+
+		try {
+			s = new Socket(ip, port);
+			oos = new ObjectOutputStream(s.getOutputStream());
+			ois = new ObjectInputStream(s.getInputStream());
+			readStream = new ReadEventFromStream(ois, this,triggerClass);
+		}
+		catch(IOException ioe) {
+			System.out.println("Impossible de se connecter au serveur.");
+			System.exit(1);
+		}
+	}
+
+
 	public EventBusConnector(List<Class> listenedEvents, String ip, int port) {
 		this.listenedEvents = listenedEvents;
 
@@ -58,13 +80,13 @@ public class EventBusConnector extends Thread implements IEventBusConnector {
 		readStream.start();
 	}
 	
-	//Thread qui envoie au bus d'événements les événements générés par
+	//Thread qui envoie au bus d'ï¿½vï¿½nements les ï¿½vï¿½nements gï¿½nï¿½rï¿½s par
 	//son application.
 	public void run()
 	{
 		while(true) {
-			//Offrir une petite pause à l'application; un système à événement n'a pas besoin
-			//de réactions immédiates
+			//Offrir une petite pause ï¿½ l'application; un systï¿½me ï¿½ ï¿½vï¿½nement n'a pas besoin
+			//de rï¿½actions immï¿½diates
 			try {
 				//Offrir une pause au thread
 				Thread.sleep(1000);
@@ -72,7 +94,7 @@ public class EventBusConnector extends Thread implements IEventBusConnector {
 				synchronized(lstEventsToSend) {
 					if(lstEventsToSend.size() > 0) {
 						IEvent ie = lstEventsToSend.get(0);
-						System.out.println("Envoie de l'événement " + ie.toString());
+						System.out.println("Envoie de l'ï¿½vï¿½nement " + ie.toString());
 						oos.writeObject(ie);
 						lstEventsToSend.remove(0);
 					}
@@ -86,7 +108,7 @@ public class EventBusConnector extends Thread implements IEventBusConnector {
 	}
 	
 	/*
-	 * Compare un événement avec la liste d'événements à écouter.
+	 * Compare un ï¿½vï¿½nement avec la liste d'ï¿½vï¿½nements ï¿½ ï¿½couter.
 	 */
 	@SuppressWarnings("unchecked")
 	public boolean listensToEvent(Object o)
@@ -97,7 +119,7 @@ public class EventBusConnector extends Thread implements IEventBusConnector {
 			Class c = listenedEvents.get(i);
 			listens = (c.isInstance(o));
 		}
-		System.out.println("Réception de l'événement " + o.toString() + (listens?" traité":"ignoré"));
+		System.out.println("Rï¿½ception de l'ï¿½vï¿½nement " + o.toString() + (listens?" traitï¿½":"ignorï¿½"));
 		return listens;
 	}
 	
@@ -108,7 +130,9 @@ public class EventBusConnector extends Thread implements IEventBusConnector {
 	public void notifyObservers(IEvent event)
 	{
 		for(IObserver o : lstObserver) {
+
 			o.update(this, event);
+
 		}
 	}
 	
@@ -118,25 +142,46 @@ public class EventBusConnector extends Thread implements IEventBusConnector {
 	}
 }
 
-//Thread qui écoute les événements provenant du bus d'événements.
-//Le Connector achemine les événements qui correspondent aux types à écouter
+//Thread qui ï¿½coute les ï¿½vï¿½nements provenant du bus d'ï¿½vï¿½nements.
+//Le Connector achemine les ï¿½vï¿½nements qui correspondent aux types ï¿½ ï¿½couter
 //dans listenedEvenets.
 class ReadEventFromStream extends Thread {
 	private ObjectInputStream ois;
 	private EventBusConnector eventBusConn;
+	private boolean firstInTheChain=false;
+	private Class synchronizeTriggerCLass=null;
+	private Stack<IEvent> eventReceivedStack=new Stack<IEvent>();
+	public ReadEventFromStream(ObjectInputStream ois, EventBusConnector eventBusConn, Class synchronizeTriggerCLass) {
+		this.ois = ois;
+		this.eventBusConn = eventBusConn;
+		this.synchronizeTriggerCLass=synchronizeTriggerCLass;
+	}
 	public ReadEventFromStream(ObjectInputStream ois, EventBusConnector eventBusConn) {
 		this.ois = ois;
 		this.eventBusConn = eventBusConn;
+		this.firstInTheChain=true;
 	}
 	
 	public void run() {
 		while(true) {
 			try {
 				Object o = ois.readObject();
-				// Les événements reçus qui ne correspondent pas à ces types sont ignorés par
+				// Les ï¿½vï¿½nements reï¿½us qui ne correspondent pas ï¿½ ces types sont ignorï¿½s par
 				// le Connector.
+				//ajouter o Ã  la pile d'evenement
+
 				if (eventBusConn.listensToEvent(o))
-					eventBusConn.notifyObservers((IEvent)o);	
+					if(EventThatShouldBeSynchronized.class.isInstance(o)&&!firstInTheChain){
+						eventReceivedStack.push((IEvent) o);
+					} else if(synchronizeTriggerCLass!=null&&synchronizeTriggerCLass.isInstance(o)){
+
+						eventBusConn.notifyObservers((IEvent) eventReceivedStack.pop());
+					}else{
+						eventBusConn.notifyObservers((IEvent)o);
+					}
+
+
+
 			}
 			catch(Exception e) {
 				e.printStackTrace();
