@@ -42,7 +42,7 @@ public class UIMainWindow extends JFrame implements IObserver {
 	
 	private int delay; //Temps artificiel de d�lai de traitement des �v�nements
 	private String syncText; //Texte � afficher lors de l'�v�nement synchronis�
-	
+	//list d'événement recu
 	private JList lstResultatEvent;
 	private DefaultListModel model;
 	private JScrollPane scrollPane;

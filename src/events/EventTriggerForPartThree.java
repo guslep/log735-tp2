@@ -11,7 +11,9 @@ des Applications.
 package events;
 
 public class EventTriggerForPartThree extends EventBase implements IAckEvent{
-
+	/**
+	 * Evenement envoyé par le client 2 et recu par le client 3
+	 */
 
 	private static final long serialVersionUID = -2908700414599347327L;
 

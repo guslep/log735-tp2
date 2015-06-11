@@ -12,7 +12,9 @@ package events;
 
 public class EventTriggerForPartTwo extends EventBase implements IAckEvent{
 
-
+	/**
+	 * événement envoyé par le client 1 et recu par le client 2
+	 */
 	private static final long serialVersionUID = -1658999729840687338L;
 
 	public EventTriggerForPartTwo(String m){

@@ -34,7 +34,7 @@ public class MainPartOne {
 		listenedEvents.add(IEventSynchronized.class);
 
 		EventBusConnector bus = new EventBusConnector(listenedEvents, ip, 12045);
-		UIMainWindow window = new UIMainWindow(bus, "App Un", "Vous", 10, EventTriggerForPartTwo.class);
+		UIMainWindow window = new UIMainWindow(bus, "App Un", "Vous", 3, EventTriggerForPartTwo.class);
 		bus.addObserver(window);
 		
 		bus.start();

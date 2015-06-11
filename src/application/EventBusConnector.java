@@ -19,15 +19,13 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Stack;
+import java.util.*;
 
 import events.EventThatShouldBeSynchronized;
 import events.IEvent;
 import events.IPartOneEvent;
 
-
+//nos événements ont une consciences écologiques, ils utilisent un BUS !!!!!!!!
 public class EventBusConnector extends Thread implements IEventBusConnector {
 	// Liste des �v�nements � �couter.
 	@SuppressWarnings("unchecked")
@@ -44,14 +42,14 @@ public class EventBusConnector extends Thread implements IEventBusConnector {
 
 
 
-	public EventBusConnector(List<Class> listenedEvents, String ip, int port,Class triggerClass) {
+	public EventBusConnector(List<Class> listenedEvents, String ip, int port,Class triggerClass, Integer order) {
 		this.listenedEvents = listenedEvents;
 
 		try {
 			s = new Socket(ip, port);
 			oos = new ObjectOutputStream(s.getOutputStream());
 			ois = new ObjectInputStream(s.getInputStream());
-			readStream = new ReadEventFromStream(ois, this,triggerClass);
+			readStream = new ReadEventFromStream(ois, this,triggerClass,order);
 		}
 		catch(IOException ioe) {
 			System.out.println("Impossible de se connecter au serveur.");
@@ -150,11 +148,14 @@ class ReadEventFromStream extends Thread {
 	private EventBusConnector eventBusConn;
 	private boolean firstInTheChain=false;
 	private Class synchronizeTriggerCLass=null;
-	private Stack<IEvent> eventReceivedStack=new Stack<IEvent>();
-	public ReadEventFromStream(ObjectInputStream ois, EventBusConnector eventBusConn, Class synchronizeTriggerCLass) {
+	private Integer orderInChain;
+//liste d'evenement synchroniser en attente d'être affiché
+	private Queue<IEvent> eventReceivedStack=new LinkedList<IEvent>();
+	public ReadEventFromStream(ObjectInputStream ois, EventBusConnector eventBusConn, Class synchronizeTriggerCLass,Integer orderInChain) {
 		this.ois = ois;
 		this.eventBusConn = eventBusConn;
 		this.synchronizeTriggerCLass=synchronizeTriggerCLass;
+		this.orderInChain=orderInChain-1;
 	}
 	public ReadEventFromStream(ObjectInputStream ois, EventBusConnector eventBusConn) {
 		this.ois = ois;
@@ -171,11 +172,47 @@ class ReadEventFromStream extends Thread {
 				//ajouter o à la pile d'evenement
 
 				if (eventBusConn.listensToEvent(o))
-					if(EventThatShouldBeSynchronized.class.isInstance(o)&&!firstInTheChain){
-						eventReceivedStack.push((IEvent) o);
-					} else if(synchronizeTriggerCLass!=null&&synchronizeTriggerCLass.isInstance(o)){
 
-						eventBusConn.notifyObservers((IEvent) eventReceivedStack.pop());
+				/**
+				 * Si l'événement recu est un événement synchronisé  et que le serveur n'est pas le pemier de la liste alors
+				 * on ajoute l'événement dans la liste. On crée un timer qui va ce réveiller après un certain temps et traiter l'événement
+				 * (On affiche le message à l'écran)
+				 * . Si l'événement  a été retiré de la liste rien n' est fait.
+				 *
+				 */
+
+					if(EventThatShouldBeSynchronized.class.isInstance(o)&&!firstInTheChain){
+												eventReceivedStack.add((IEvent) o);
+						((EventThatShouldBeSynchronized) o).setTimeAdded(new Date());
+						new java.util.Timer().schedule(
+								new java.util.TimerTask() {
+									@Override
+									public void run() {
+									Date currentTime=new Date();
+										Iterator<IEvent> listIterator=eventReceivedStack.iterator();
+										int index=0;
+
+										while (listIterator.hasNext()){
+											EventThatShouldBeSynchronized eventInqueu=(EventThatShouldBeSynchronized)listIterator.next();
+											/**
+											 * un timer va ce réveiller et valider si l'événement a déjà été traité
+											 */
+											if(currentTime.getTime()-eventInqueu.getTimeAdded().getTime()>15000*orderInChain-1000){
+												eventBusConn.notifyObservers( eventInqueu);
+												eventReceivedStack.remove(eventInqueu);
+												System.out.print("Une application dans la chaine n'a pas répondu");
+											}
+											index++;
+										}
+									}
+								},
+								(15000*orderInChain)
+						);
+
+					}
+					else if(synchronizeTriggerCLass!=null&&synchronizeTriggerCLass.isInstance(o)){
+						//Lorsqu'un événement de confirmation (update) est recu on l'affiche
+						eventBusConn.notifyObservers((IEvent) eventReceivedStack.remove());
 					}else{
 						eventBusConn.notifyObservers((IEvent)o);
 					}
